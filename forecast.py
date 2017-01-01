@@ -50,7 +50,7 @@ class Network:
 
             layer = tf_layers.fully_connected(layer, num_outputs=1,
                                               activation_fn=None, scope="output_layer")
-            self.predictions = layer[1]
+            self.predictions = layer[0]
 
             differences = self.predictions - self.gold
             self.mse = tf.reduce_mean(tf.square(differences))
@@ -137,7 +137,7 @@ def main():
     network = Network(args, data_train=data_train)
 
     # Train
-    best_dev_mse = 0
+    best_dev_mse = float('Inf')
     test_predictions = None
 
     for epoch in range(args.epochs):
@@ -149,7 +149,7 @@ def main():
         print("Epoch {}: dev mse={:.4f} quantile_loss={:.4f}".format(
             epoch + 1, dev_mse, dev_quantile), file=sys.stderr)
 
-        if dev_mse > best_dev_mse:
+        if dev_mse < best_dev_mse:
             best_dev_mse = dev_mse
             test_predictions = network.predict(data_test)
 
