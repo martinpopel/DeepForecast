@@ -48,9 +48,8 @@ class Network:
             layer = tf_layers.fully_connected(layer, num_outputs=args.hidden_dim,
                                               activation_fn=tf.nn.relu, scope="hidden_layer")
 
-            layer = tf_layers.fully_connected(layer, num_outputs=1,
-                                              activation_fn=None, scope="output_layer")
-            self.predictions = layer[0]
+            layer = tf_layers.linear(layer, num_outputs=1, scope="output_layer")
+            self.predictions = tf.reshape(layer, [-1])
 
             differences = self.predictions - self.gold
             self.mse = tf.reduce_mean(tf.square(differences))
@@ -84,8 +83,8 @@ class Network:
         features, prod_id, proj_id, gold = data_train.next_batch(self.args.batch_size)
         feed_dict = {self.prod_id: prod_id, self.proj_id: proj_id, self.gold: gold,
                      self.features: features, self.dataset_name: "train"}
-        _, summary = self.session.run([self.training, self.summary], feed_dict)
-        self.summary_writer.add_summary(summary, self.training_step)
+        _, summ = self.session.run([self.training, self.summary], feed_dict)
+        self.summary_writer.add_summary(summ, self.training_step)
 
     def evaluate(self, data_dev):
         features, prod_id, proj_id, gold = data_dev.whole_data_as_batch()
@@ -140,24 +139,22 @@ def main():
     best_dev_mse = float('Inf')
     test_predictions = None
 
+    print("Training...", file=sys.stderr)
     for epoch in range(args.epochs):
-        print("Training epoch {}".format(epoch + 1), file=sys.stderr)
         while not data_train.epoch_finished():
             network.train(data_train)
 
         dev_mse, dev_quantile = network.evaluate(data_dev)
-        print("Epoch {}: dev mse={:.4f} quantile_loss={:.4f}".format(
+        print("Epoch {:3d}: dev mse={:.4f} quantile_loss={:.4f}".format(
             epoch + 1, dev_mse, dev_quantile), file=sys.stderr)
 
         if dev_mse < best_dev_mse:
             best_dev_mse = dev_mse
             test_predictions = network.predict(data_test)
 
-    # TODO Print test predictions
-    #for i in range(len(data_test.sentence_lens)):
-        #for j in range(data_test.sentence_lens[i]):
-            #print("{}\t_\t{}".format(test_forms[i][j], test_tags[test_predictions[i, j]]))
-        #print()
+    # Print test predictions
+    for i in range(len(data_test.data)):
+        print("{:.6f}".format(test_predictions[i]))
 
 if __name__ == "__main__":
     main()

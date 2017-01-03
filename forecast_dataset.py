@@ -1,4 +1,5 @@
 import csv
+import logging
 import numpy as np
 
 class ForecastDataset:
@@ -24,7 +25,15 @@ class ForecastDataset:
             csvreader = csv.reader(file)
             # skip header line
             csvreader.__next__()
-            for row in csvreader:
+            for line_n, row in enumerate(csvreader, start=1):
+                if 'Inf' in row:
+                    logging.warning("Skipping an example with Inf %s:%d\n%s"
+                                    % (filename, line_n, str(row)))
+                    continue
+                if 'NaN' in row:
+                    logging.warning("Skipping an example with NaN %s:%d\n%s"
+                                    % (filename, line_n, str(row)))
+                    continue
                 example = {}
                 # columns 1-12 ... previous months consumptions
                 # column 13 ... id of the month to be predicted
@@ -75,11 +84,14 @@ class ForecastDataset:
 
     def _next_batch(self, batch_perm):
         batch_size = len(batch_perm)
-        features, prod_id, proj_id, gold = [], [], [], []
+        features = np.zeros([batch_size, self.features_size()])
+        gold = np.zeros([batch_size])
+        prod_id = np.zeros([batch_size])
+        proj_id = np.zeros([batch_size])
         for i in range(batch_size):
             example = self.data[batch_perm[i]]
-            features.append(example['features'])
-            prod_id.append(example['prod_id'])
-            proj_id.append(example['proj_id'])
-            gold.append(example['gold'])
+            features[i, :] = example['features']
+            prod_id[i] = example['prod_id']
+            proj_id[i] = example['proj_id']
+            gold[i] = example['gold']
         return features, prod_id, proj_id, gold
