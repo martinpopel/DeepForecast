@@ -21,18 +21,18 @@ class ForecastDataset:
 
         # Load the data from csv.
         self.data = []
+        self.skipped = 0
         with open(filename, newline='') as file:
             csvreader = csv.reader(file)
             # skip header line
             csvreader.__next__()
             for line_n, row in enumerate(csvreader, start=1):
-                if 'Inf' in row:
-                    logging.warning("Skipping an example with Inf %s:%d\n%s"
-                                    % (filename, line_n, str(row)))
-                    continue
-                if 'NaN' in row:
-                    logging.warning("Skipping an example with NaN %s:%d\n%s"
-                                    % (filename, line_n, str(row)))
+                problems = {'Inf', 'NaN', 'NA'}.intersection(row)
+                if problems:
+                    if self.skipped == 0:
+                        logging.warning("Skipping an example with %s %s:%d\n%s",
+                                        problems, filename, line_n, str(row))
+                    self.skipped += 1
                     continue
                 example = {}
                 # columns 1-12 ... previous months consumptions
@@ -50,6 +50,8 @@ class ForecastDataset:
                 example['gold'] = row[-1]
                 self.data.append(example)
         self.data_size = len(self.data)
+        logging.warning("%d examples read from %s. %d examples skipped.",
+                        self.data_size, filename, self.skipped)
         self._permutation = np.random.permutation(self.data_size)
 
     def features_size(self):

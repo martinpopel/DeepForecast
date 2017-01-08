@@ -57,21 +57,24 @@ class Network:
             self.quantile = tf_losses.absolute_difference(self.predictions, self.gold)
 
             # TODO try optimizing a different loss
-            self.training = tf.train.AdamOptimizer().minimize(self.mse,
-                                                              global_step=self.global_step)
+            self.training = tf.train.AdamOptimizer().minimize(
+                self.mse if args.loss == 'mse' else self.quantile, global_step=self.global_step)
 
-            self.dataset_name = tf.placeholder(tf.string, [])
-            self.summary = tf.summary.merge(
-                [tf.scalar_summary(self.dataset_name+"/mse", self.mse),
-                 tf.scalar_summary(self.dataset_name+"/quantile", self.quantile)])
+            self.train_summary = tf.summary.merge(
+                [tf.summary.scalar("train/mse", self.mse),
+                 tf.summary.scalar("train/quantile", self.quantile)])
+            self.dev_summary = tf.summary.merge(
+                [tf.summary.scalar("dev/mse", self.mse),
+                 tf.summary.scalar("dev/quantile", self.quantile)])
 
             # Initialize variables
             self.session.run(tf.global_variables_initializer())
 
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
             if args.expname is None:
-                args.expname = "proj{}-prod{}-hid{}-bs{}-epochs{}".format(
-                    args.proj_dim, args.prod_dim, args.hidden_dim, args.batch_size, args.epochs)
+                args.expname = "proj{}-prod{}-hid{}-{}-bs{}-epochs{}".format(
+                    args.proj_dim, args.prod_dim, args.hidden_dim, args.loss, args.batch_size,
+                    args.epochs)
             self.summary_writer = tf.summary.FileWriter("{}/{}-{}".format(
                 args.logdir, timestamp, args.expname), graph=self.session.graph, flush_secs=10)
 
@@ -82,15 +85,16 @@ class Network:
     def train(self, data_train):
         features, prod_id, proj_id, gold = data_train.next_batch(self.args.batch_size)
         feed_dict = {self.prod_id: prod_id, self.proj_id: proj_id, self.gold: gold,
-                     self.features: features, self.dataset_name: "train"}
-        _, summ = self.session.run([self.training, self.summary], feed_dict)
+                     self.features: features}
+        _, summ = self.session.run([self.training, self.train_summary], feed_dict)
         self.summary_writer.add_summary(summ, self.training_step)
 
     def evaluate(self, data_dev):
         features, prod_id, proj_id, gold = data_dev.whole_data_as_batch()
         feed_dict = {self.prod_id: prod_id, self.proj_id: proj_id, self.gold: gold,
-                     self.features: features, self.dataset_name: "dev"}
-        mse, quantile, summ = self.session.run([self.mse, self.quantile, self.summary], feed_dict)
+                     self.features: features}
+        mse, quantile, summ = self.session.run([self.mse, self.quantile, self.dev_summary],
+                                               feed_dict)
         self.summary_writer.add_summary(summ, self.training_step)
         return mse, quantile
 
@@ -119,6 +123,7 @@ def main():
     argpar.add_argument("--expname", default=None, type=str, help="Experiment name.")
 
     # Project-specific arguments
+    argpar.add_argument("--loss", default='mse', type=str, help="Optimization loss (mse,quantile).")
     argpar.add_argument("--proj_dim", default=20, type=int, help="Project embeddings dimension.")
     argpar.add_argument("--prod_dim", default=20, type=int, help="Product embeddings dimension.")
     argpar.add_argument("--hidden_dim", default=20, type=int, help="Hidden layer dimension.")
