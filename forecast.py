@@ -45,8 +45,9 @@ class Network:
             layer = tf.concat(1, [prod_embeddings, proj_embeddings, self.features])
 
             # TODO try more layers, other activation_fns, dropout,...
-            layer = tf_layers.fully_connected(layer, num_outputs=args.hidden_dim,
-                                              activation_fn=tf.nn.relu, scope="hidden_layer")
+            if args.hidden_dim:
+                layer = tf_layers.fully_connected(layer, num_outputs=args.hidden_dim,
+                                                  activation_fn=tf.nn.relu, scope="hidden_layer")
 
             layer = tf_layers.linear(layer, num_outputs=1, scope="output_layer")
             self.predictions = tf.reshape(layer, [-1])
@@ -57,8 +58,12 @@ class Network:
             self.quantile = tf_losses.absolute_difference(self.predictions, self.gold)
 
             # TODO try optimizing a different loss
-            self.training = tf.train.AdamOptimizer().minimize(
-                self.mse if args.loss == 'mse' else self.quantile, global_step=self.global_step)
+            optimizer = tf.train.AdamOptimizer()
+            loss = self.mse if args.loss == 'mse' else self.quantile
+            #self.gradient = optimizer.compute_gradients(loss)
+            # TODO: report the gradient to summaries, do gradient clipping
+            #self.training = optimizer.apply_gradients(self.gradient, global_step=self.global_step)
+            self.training = optimizer.minimize(loss, global_step=self.global_step)
 
             self.train_summary = tf.summary.merge(
                 [tf.summary.scalar("train/mse", self.mse),
@@ -110,11 +115,11 @@ def main():
     argpar = argparse.ArgumentParser()
     # General arguments
     argpar.add_argument("--batch_size", default=32, type=int, help="Batch size.")
-    argpar.add_argument("--data_train", default="data/tableTrainingImputedSmall.csv",
+    argpar.add_argument("--data_train", default="data/tableTrainingImputed.csv",
                         type=str, help="Training data file.")
-    argpar.add_argument("--data_dev", default="data/tableTestingImputedSmall.csv",
+    argpar.add_argument("--data_dev", default="data/tableTestingImputed.csv",
                         type=str, help="Development data file.")
-    argpar.add_argument("--data_test", default="data/tableTestingImputedSmall.csv",
+    argpar.add_argument("--data_test", default="data/tableTestingImputed.csv",
                         type=str, help="Test data file.")
     argpar.add_argument("--epochs", default=10, type=int, help="Number of epochs.")
     argpar.add_argument("--logdir", default="logs", type=str, help="Logdir name.")
